@@ -1,3 +1,34 @@
+# data for examples that downloads from dropbox see download_data.sh
+
+# Ignore large local data directory
+local_data/**
+
+# secrets
+.gitcredentials
+*.pem
+*.p12
+*.key
+.env
+
+# MATLAB #
+###################
+*.asv
+html/**
+
+# Applications
+*.app
+*.exe
+*.war
+
+# Large media files
+*.mp4
+*.tiff
+*.avi
+*.flv
+*.mov
+*.wmv
+
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
@@ -205,3 +236,4 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+.gitcredentials

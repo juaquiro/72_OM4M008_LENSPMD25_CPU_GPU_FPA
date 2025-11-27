@@ -1,7 +1,7 @@
 function [w, wx, wy, MFB]=calcSpatialFreqsFilterbank(g, M, wTh, wmin, wmax, Dw, freqUnits, calcMethod, filterFlag)
 % calcSpatialFreqs spatial frequencies estimation for igram g
 % [w, wx, wy]=calcSpatialFreqsFilterbank(g, M, wTh, wmin, wmax, Dw, freqUnits, calcMethod) computes the module w of the local spatial frequencies vector [wx, wy]=grad(phi) of the
-% input igram g=a+b*cos(phi), in sfreqUnits={"rad_px", "ff" (default)}, filters out the low spatial freqs up to wTh (default 10 ff) and
+% input igram g=a+b*cos(phi), in sfreqUnits={"rad_px"(default), "ff" }, filters out the low spatial freqs up to wTh (default 10 ff) and
 % uses nFilters=(wmax-wmin)/Dw radial gausian filters scanning from wmin to
 % wmax every Dw all in ff
 
@@ -17,7 +17,7 @@ arguments
     wmin (1,1) {mustBeNumeric}=wTh; % min spatial freq in ff for scanning with the radial filters
     wmax (1,1) {mustBeNumeric}=0.25*mean(size(g)); % max spatial freq in ff for scanning with the radial filters
     Dw (1,1) {mustBeNumeric}=1;  % spatial freq interval for scanning in ff
-    freqUnits string {mustBeMember(freqUnits,["ff", "rad/px"])}="ff"  % output spatial freqs units
+    freqUnits string {mustBeMember(freqUnits,["ff", "rad/px"])}="rad/px"  % output spatial freqs units
     calcMethod string {mustBeMember(calcMethod,["interpFreq", "maxFreq"])}="interpFreq"  % output spatial freqs units
     filterFlag (1,1) {mustBeNumericOrLogical}=true;  % wx and wy filter flag
 end

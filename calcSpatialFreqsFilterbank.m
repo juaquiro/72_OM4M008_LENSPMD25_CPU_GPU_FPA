@@ -1,7 +1,8 @@
-function [w, wx, wy, MFB]=calcSpatialFreqsFilterbank(g, M, wTh, wmin, wmax, Dw, freqUnits, calcMethod, filterFlag)
+function [w_phi, theta_or, phi_x, phi_y, M_proc]=calcSpatialFreqsFilterbank(g, M, wTh, wmin, wmax, Dw, freqUnits, calcMethod, filterFlag)
 % calcSpatialFreqs spatial frequencies estimation for igram g
-% [w, wx, wy]=calcSpatialFreqsFilterbank(g, M, wTh, wmin, wmax, Dw, freqUnits, calcMethod) computes the module w of the local spatial frequencies vector [wx, wy]=grad(phi) of the
+% [w_phi, theta_or, phi_x, phi_y, M_proc]=calcSpatialFreqsFilterbank(g, M, wTh, wmin, wmax, Dw, freqUnits, calcMethod) computes the module w_phi of the local spatial frequencies vector [phi_x, phi_y]=grad(phi) of the
 % input igram g=a+b*cos(phi), in sfreqUnits={"rad_px"(default), "ff" }, filters out the low spatial freqs up to wTh (default 10 ff) and
+% also returns the fringe orientation angle [0 pi] theta_or.
 % uses nFilters=(wmax-wmin)/Dw radial gausian filters scanning from wmin to
 % wmax every Dw all in ff
 
@@ -102,62 +103,67 @@ plot(qList, vmgHx(: ,indx), '.-')
 
 if calcMethod=="maxFreq" %fast but low precission depening on Dw
     [~, pos] = max(vmgHx);
-    wx = reshape(qList(pos),NR,NC);% measured spatial x freq in fringes/field
+    phi_x = reshape(qList(pos),NR,NC);% measured spatial x freq in fringes/field
 else %slow and accurate very independent of Dw
     %calculate wx interpolating maxima for each filter respose
-    wx = calcFreqFromFilterRespose(M, NR, NC, vmgHx, nFilters, qList);
+    phi_x = calcFreqFromFilterRespose(M, NR, NC, vmgHx, nFilters, qList);
 end
 
 %filter impulsive noise
-wx=medfilt2(wx, [5 5]); 
+phi_x=medfilt2(phi_x, [5 5]); 
 
 if filterFlag
     % weigthed filter
-    wx(isnan(wx))=0;
+    phi_x(isnan(phi_x))=0;
     phaseFactor=0.01;
     wxQuality=reshape(std(vmgHx).^2, NR,NC); %the bigger the better
-    zx=wxQuality.*exp(1i*phaseFactor*wx); %phasor
+    zx=wxQuality.*exp(1i*phaseFactor*phi_x); %phasor
     zxf=conv2(zx, ones(10,10)/100, 'same'); %phasor filtering
-    wx=angle(zxf)/phaseFactor; %filtered freq border resistant
+    phi_x=angle(zxf)/phaseFactor; %filtered freq border resistant
 
     %filter Mask
-    MFB=conv2(M, ones(10,10)/100, 'same');
-    MFB=MFB>0.999;
+    M_proc=conv2(M, ones(10,10)/100, 'same');
+    M_proc=M_proc>0.999;
 end
 
 % check for calcMethod 
 if calcMethod=="maxFreq" %fast but low precission depening on Dw
     [~, pos] = max(vmgHy);
-    wy = reshape(qList(pos).^2,NR,NC);% measured spatial x freq in fringes/field
+    phi_y = reshape(qList(pos).^2,NR,NC);% measured spatial x freq in fringes/field
 else %slow and accurate very independent of Dw
     %calculate wy interpolating maxima for each filter respose
-    wy = calcFreqFromFilterRespose(M, NR, NC, vmgHy, nFilters, qList);
+    phi_y = calcFreqFromFilterRespose(M, NR, NC, vmgHy, nFilters, qList);
 end
 
 %filter impulsive noise
-wy=medfilt2(wy, [5 5]); 
+phi_y=medfilt2(phi_y, [5 5]); 
 
 if filterFlag
     % weigthed filter
-    wy(isnan(wy))=0;
+    phi_y(isnan(phi_y))=0;
     phaseFactor=0.01;
     wyQuality=reshape(std(vmgHy).^2, NR,NC); %the bigger the better
-    zy=wyQuality.*exp(1i*phaseFactor*wy); %phasor
+    zy=wyQuality.*exp(1i*phaseFactor*phi_y); %phasor
     zyf=conv2(zy, ones(10,10)/100,'same'); %phasor filtering
-    wy=angle(zyf)/phaseFactor; %filtered freq border resistant
+    phi_y=angle(zyf)/phaseFactor; %filtered freq border resistant
 end
 
 %units conversion factor
 if freqUnits=="rad/px"
     Cx=2*pi/NC;  %1 field NC in px  , 1 fringe =2*pi rad
     Cy=2*pi/NR;  %1 field NR in px  , 1 fringe =2*pi rad
-    wx=wx*Cx; % rad/px
-    wy=wy*Cy; % rad/px
+    phi_x=phi_x*Cx; % rad/px
+    phi_y=phi_y*Cy; % rad/px
 
-    w=abs(wx+1i*wy); %rad/px
+    w_phi=abs(phi_x+1i*phi_y); %rad/px
 else
-    w=abs(wx+1i*wy); %ff
+    w_phi=abs(phi_x+1i*phi_y); %ff
 end
+
+% fringe orientation [0, pi]
+theta_or=atan2(-phi_y, phi_x); % fringe orientation
+
+
 
 function w = calcFreqFromFilterRespose(M, NR, NC, vmgH, nFilters, qList)
 w=zeros(NR, NC);

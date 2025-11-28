@@ -20,7 +20,8 @@ switch Caso
         %M=ones(NR, NC);
 
         %spatial carrier
-        w0=[pi/4, 0*pi/4]; %rad/px
+        w0=[pi/4, pi/4]; %rad/px
+        fringe_carrier_or=atan(w0(2)/w0(1));
 
         %peaks
         phi=2*peaks(max(NR, NC));
@@ -50,7 +51,7 @@ sfreqUnits="rad/px";
 % calcMethod="interpFreq";
 % %[pred_w_phi, pred_phi_x, pred_phi_y, M]=calcSpatialFreqsFilterbank(g, M, wTh, wmin, wmax, Dw, sfreqUnits, calcMethod);
 %[pred_w_phi, pred_theta_or, pred_phi_x, pred_phi_y, M_proc]=calcSpatialFreqsFilterbank(g, M);
-[pred_w_phi, pred_theta_or, pred_phi_x, pred_phi_y, M_proc]=calcSpatialFreqsHilbert2D(g, M);
+[pred_w_phi, pred_theta_or, pred_phi_x, pred_phi_y, M_proc]=calcSpatialFreqsHilbert2D(g, M, "filter_orientation", fringe_carrier_or);
 
 
 %% display

@@ -1,14 +1,111 @@
-function [w_phi, theta_or, phi_x, phi_y, M_proc]=calcSpatialFreqsFilterbank(g, M, wTh, wmin, wmax, Dw, freqUnits, calcMethod, filterFlag)
-% calcSpatialFreqs spatial frequencies estimation for igram g
-% [w_phi, theta_or, phi_x, phi_y, M_proc]=calcSpatialFreqsFilterbank(g, M, wTh, wmin, wmax, Dw, freqUnits, calcMethod) computes the module w_phi of the local spatial frequencies vector [phi_x, phi_y]=grad(phi) of the
-% input igram g=a+b*cos(phi), in sfreqUnits={"rad_px"(default), "ff" }, filters out the low spatial freqs up to wTh (default 10 ff) and
-% also returns the fringe orientation angle [0 pi] theta_or.
-% uses nFilters=(wmax-wmin)/Dw radial gausian filters scanning from wmin to
-% wmax every Dw all in ff
-
-% Ref: J. Vargas, J. Antonio Quiroga, and T. Belenguer, "Local fringe density determination by adaptive filtering," Opt. Lett. 36, 70-72 (2011)
-
-%   AQ 11APR24
+function [w_phi, theta_or, phi_x, phi_y, M_proc] = calcSpatialFreqsFilterbank(g, M, wTh, wmin, wmax, Dw, freqUnits, calcMethod, filterFlag)
+%CALCSPATIALFREQSFILTERBANK Local spatial frequency estimation for fringe patterns.
+%
+%   [w_phi, theta_or, phi_x, phi_y, M_proc] = CALCSPATIALFREQSFILTERBANK(g)
+%   estimates the local spatial frequency magnitude w_phi, the fringe
+%   orientation theta_or, and the phase-gradient components phi_x and phi_y
+%   of the input fringe pattern
+%
+%       g = a + b * cos(phi),
+%
+%   using a bank of radial Gaussian filters in the spatial-frequency domain.
+%   The method is based on the adaptive filtering approach described in:
+%
+%     J. Vargas, J. A. Quiroga, and T. Belenguer,
+%     "Local frequency determination by adaptive filtering,"
+%     Opt. Lett. 36, 70–72 (2011).
+%
+%   The algorithm scans a range of spatial frequencies with a set of
+%   circularly symmetric (radial) Gaussian filters, selecting at each pixel
+%   the frequency that maximizes the filter response. Optionally, the
+%   estimated gradient components can be low-pass filtered within the
+%   region of interest (ROI).
+%
+%   Syntax
+%   ------
+%   [w_phi, theta_or, phi_x, phi_y, M_proc] = CALCSPATIALFREQSFILTERBANK(g)
+%   [w_phi, theta_or, phi_x, phi_y, M_proc] = CALCSPATIALFREQSFILTERBANK( ...
+%       g, M, wTh, wmin, wmax, Dw, freqUnits, calcMethod, filterFlag)
+%
+%   Input arguments
+%   ---------------
+%   g          : 2-D numeric array
+%                Input fringe pattern (igram), modeled as g = a + b*cos(phi).
+%
+%   M          : 2-D numeric or logical array, same size as g
+%                ROI mask. Non-zero or true values indicate valid pixels.
+%                Default: ones(size(g))  (full image is valid).
+%
+%   wTh        : scalar numeric
+%                Threshold for the spatial-frequency magnitude (in fft
+%                frequency units, "ff"). Spatial frequencies below wTh are
+%                filtered out. Default: 5.
+%
+%   wmin       : scalar numeric
+%                Minimum spatial frequency (in "ff" units) for the radial
+%                filter bank scan. Default: wTh.
+%
+%   wmax       : scalar numeric
+%                Maximum spatial frequency (in "ff" units) for the radial
+%                filter bank scan. Default: 0.25*mean(size(g)).
+%
+%   Dw         : scalar numeric
+%                Frequency step (in "ff" units) between successive radial
+%                filters in the bank. Default: 1.
+%
+%   freqUnits  : string scalar
+%                Units for the output spatial frequencies. Allowed values:
+%                  "ff"      - normalized fft-frequency units
+%                  "rad/px"  - radians per pixel (default)
+%                 Defalult: "rad/px"
+%
+%   calcMethod : string scalar
+%                Method for estimating the local frequency from the filter
+%                responses. Allowed values:
+%                  "interpFreq" - parabolic interpolation around the
+%                                  maximum filter response (default)
+%                  "maxFreq"    - use the discrete frequency of the
+%                                  maximum response.
+%                  Default: "interpFreq".
+%
+%   filterFlag : logical scalar or numeric convertible to logical
+%                If true, applies additional filtering/smoothing to the
+%                estimated gradient components (phi_x, phi_y) inside the
+%                ROI. If false, returns the raw estimates.
+%                Default: true.
+%
+%   Output arguments
+%   ----------------
+%   w_phi      : 2-D numeric array, same size as g
+%                Local spatial frequency magnitude at each pixel, expressed
+%                in the units specified by freqUnits.
+%
+%   theta_or   : 2-D numeric array, same size as g
+%                Local fringe orientation in radians, typically in [0, pi].
+%
+%   phi_x      : 2-D numeric array, same size as g
+%                Local phase gradient component along x (columns), in
+%                radians per pixel ("rad/px") when freqUnits == "rad/px".
+%
+%   phi_y      : 2-D numeric array, same size as g
+%                Local phase gradient component along y (rows), in
+%                radians per pixel ("rad/px") when freqUnits == "rad/px".
+%
+%   M_proc     : 2-D logical array, same size as g
+%                Processed ROI mask indicating pixels where the local
+%                frequency and gradient estimates are considered valid.
+%
+%   Notes
+%   -----
+%   - "ff" (fft-frequency) units correspond to cycles per field, i.e.
+%     normalized to the image size; conversion to "rad/px" is performed
+%     internally when requested via freqUnits.
+%   - The number of filters in the bank is approximately
+%       nFilters = round((wmax - wmin)/Dw).
+%
+%   See also FFT2, IFFT2, GRADIENT.
+%
+%   AQ 11-APR-2024
 %   Copyright 2009 OM4M
 
 arguments
@@ -26,13 +123,6 @@ end
 %get igram size and init wmin and wmax in terms of wTh and size(g)
 [NR, NC]=size(g);
 
-% if wmin<0
-%     wmin=wTh;
-% end
-% 
-% if wmax<0
-%     wmax=0.5*min([NR, NC]);
-% end
 
 %% filter mask borders
 % T=round(mean(NR, NC)/wTh);

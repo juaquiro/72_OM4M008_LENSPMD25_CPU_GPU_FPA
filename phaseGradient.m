@@ -1,80 +1,125 @@
-% ======================================================================
-% phasor filtering and direct gradient calculation
-% this function calculates the gradient [phix, phiy] of a phasor's phase, z=b*exp(1i*phi). It uses the same sign convetion that MATLAB gradient().
-%> Returns a the phase gradient and a Mask with valid differences. For this we use a median filter for outlier removal and gradient after phasor filtering
-%>
-%> Nmed median filter size for phase only cosine-sine filtering
-%> NS 2*NS+1 is the neigbouhoord size for phasor filtering
-%> M ROI with valid points
-%> z input phasor z=b*exp(1i*phi)
-%> LPCycles are the number of low pass cycles that we apply
-%> to the calculated derivatives
-%> Mxy ROI with valid differences
-%> phix phase x-gradient in px^-1
-%> phiy phase y-gradient in px^-1
-% ======================================================================
-function [phix, phiy, Mxy]=phaseGradient(z, M, NS, Nmed, LPCycles)
+function [phi_x, phi_y, M_proc] = phaseGradient(z, M, NS, Nmed, LPCycles)
+%PHASEGRADIENT Phase-gradient estimation from complex phasor data.
+%
+%   [phi_x, phi_y, M_proc] = PHASEGRADIENT(z, M) computes the phase
+%   gradients (phi_x, phi_y) of a complex phasor field
+%       z = b .* exp(1i * phi)
+%   using centered finite differences and optional spatial filtering.
+%   The sign convention is the same as MATLAB's GRADIENT function.
+%
+%   [phi_x, phi_y, M_proc] = PHASEGRADIENT(z, M, NS, Nmed, LPCycles)
+%   allows control over the filtering parameters:
+%
+%     z        - complex phasor array b .* exp(1i * phi)
+%     M        - ROI mask with valid points (logical or numeric)
+%     NS       - half-size of the low-pass box filter window
+%                (filter size is (2*NS+1) x (2*NS+1), default: 5)
+%     Nmed     - median filter window size for phi_x and phi_y
+%                (square window [Nmed Nmed], default: 2; 0 disables)
+%     LPCycles - number of times the low-pass filter is applied
+%                to the derivatives and mask (default: 2)
+%
+%   Outputs:
+%     phi_x  - phase gradient along x in px^-1
+%     phi_y  - phase gradient along y in px^-1
+%     M_proc - ROI mask with valid centered differences
+%
+%   Note:
+%     Centered differences are used, so the practical limit for the
+%     phase variation is pi/2 rad/px instead of pi rad/px.
+%
+%   Example:
+%     [phi_x, phi_y, Mproc] = phaseGradient(z, roiMask, 5, 2, 2);
+%
+%   See also ANGLE, CONV2, MEDFILT2, GRADIENT.
 
-%set arguments type and defaults values
-arguments
+    % ------------------------
+    % Input parsing & defaults
+    % ------------------------
+    arguments
     z (:,:) {mustBeNumeric} % phasor z=b*exp(1i*phi)
     M (:,:) {mustBeNumericOrLogical} %M ROI with valid points
     NS (1,1) {mustBeNumeric} = 5 % 2*NS+1 is the neigbouhoord size for phasor filtering
     Nmed (1,1) {mustBeNumeric} = 2 % median filter size for phase only cosine-sine filtering
     LPCycles (1,1) {mustBeNumeric} = 2 % number of low pass cycles that we apply
-end
+	end
 
-%get phahor size
-[NR, NC]=size(z);
+    % force mask as logical
+    if ~islogical(M)
+        M = (M ~= 0);
+    end
 
-%dx indexes
-A=[2:NC NC];
-B=[1 1:NC-1];
+    % ------------------------
+    % Basic size and indexing
+    % ------------------------
+    [NR, NC] = size(z);
 
-%dy indexes
-C=[2:NR NR];
-D=[1 1:NR-1];
+    % x-indices for centered first difference
+    A = [2:NC, NC];
+    B = [1, 1:NC-1];
 
-%by definition set borders to zero for 1st diferences
-M(:, 1:3)=0;
-M(1:3, :)=0;
-M(NR-2:NR, :)=0;
-M(:, NC-2:NC)=0;
+    % y-indices for centered first difference
+    C = [2:NR, NR];
+    D = [1, 1:NR-1];
 
-%dx
-%calculate 1st difference
-zd=z(:, A)./z(:, B);
-zd(isnan(zd))=0;
-phix=0.5.*angle(zd);
+    % Set borders to zero in the ROI mask (no differences on image border)
+    M(:, 1)   = false;
+    M(1, :)   = false;
+    M(NR, :)  = false;
+    M(:, NC)  = false;
 
-%dy,
-%calculate 1st difference
-zd=z(C, :)./z(D, :);
-zd(isnan(zd))=0;
-phiy=0.5.*angle(zd);
+    % ------------------------
+    % Centered phase differences
+    % ------------------------
 
-%filter derivatives, if the phasor is well sampled they shuold
-%be continuous and the filtering does not depend strongly on the fringe
-%period of the phasor
-%medfilt for outliers
-if (Nmed>0)
-    phix=medfilt2(phix, [Nmed, Nmed]);
-    phiy=medfilt2(phiy, [Nmed, Nmed]);
-end
-%mask for the diferences
-Mxy=M(:, A).*M(:, B).*M.*M(C, :).*M(D, :);
-%low pass filter
-h=ones(2*NS+1)/(2*NS+1)^2;
-for n=1:LPCycles
-    phix=conv2(phix, h, 'same');
-    phiy=conv2(phiy, h, 'same');
-    Mxy=conv2(Mxy, h, 'same');
-end
+    % dx: compute centered phase difference along x
+    zd = z(:, A) ./ z(:, B);
+    zd(isnan(zd)) = 0;           % avoid NaNs from zero division
+    phi_x = 0.5 .* angle(zd);    % centered difference -> 0.5*angle
 
-Mxy=(Mxy>0.999);
+    % dy: compute centered phase difference along y
+    zd = z(C, :) ./ z(D, :);
+    zd(isnan(zd)) = 0;
+    phi_y = 0.5 .* angle(zd);
 
-%trim results with ROI
-phix=Mxy.*phix;
-phiy=Mxy.*phiy;
+    % ------------------------
+    % Optional median filtering
+    % ------------------------
+    % If the phasor is well sampled, derivatives should be continuous;
+    % median filtering removes isolated outliers without blurring too much.
+    if Nmed > 0
+        phi_x = medfilt2(phi_x, [Nmed, Nmed]);
+        phi_y = medfilt2(phi_y, [Nmed, Nmed]);
+    end
+
+    % ------------------------
+    % Valid-difference mask
+    % ------------------------
+    % A pixel has a valid centered difference only if it and all its
+    % neighbors involved in the finite difference are valid in M.
+    M_proc = M(:, A) & M(:, B) & M & M(C, :) & M(D, :);
+
+    % ------------------------
+    % Low-pass smoothing
+    % ------------------------
+    % Smooth derivatives and mask: derivatives should be relatively smooth
+    % if the phasor is well sampled. The box filter size is (2*NS+1)^2.
+    hLP = ones(2*NS + 1) / (2*NS + 1)^2;
+
+    for n = 1:LPCycles
+        phi_x  = conv2(phi_x,  hLP, 'same');
+        phi_y  = conv2(phi_y,  hLP, 'same');
+        % Smooth the mask as well, then threshold later
+        M_proc = conv2(double(M_proc), hLP, 'same');
+    end
+
+    % Threshold the smoothed mask back to logical
+    M_proc = (M_proc > 0.999);
+
+    % ------------------------
+    % Apply ROI to gradients
+    % ------------------------
+    phi_x = M_proc .* phi_x;
+    phi_y = M_proc .* phi_y;
 
 end

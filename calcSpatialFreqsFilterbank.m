@@ -182,8 +182,11 @@ end
 
 
 %AQDEBUG to check for the correlation for a given pixel (r,c)
-c=round(0.5*NC+10); r=round(0.5*NR); indx=sub2ind([NR NC], r, c)
-plot(qList, vmgHx(: ,indx), '.-')
+AQDEBUG=false;
+if AQDEBUG
+    c=round(0.5*NC+10); r=round(0.5*NR); indx=sub2ind([NR NC], r, c);
+    figure; plot(qList, vmgHx(: ,indx), '.-'); title(['Correlaction X for row ' num2str(r) ' col ' num2str(c)]);
+end
 
 %% spatial freq estimation
 

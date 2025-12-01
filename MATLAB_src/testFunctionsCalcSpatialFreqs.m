@@ -36,7 +36,7 @@ switch Caso
         %M=ones(NR, NC);
 
         %spatial carrier
-        w0=[pi/4, pi/4]; %rad/px
+        w0=[0.25*pi/4, 0.25*pi/4]; %rad/px
         fringe_carrier_or=atan(w0(2)/w0(1));
 
         %peaks
@@ -51,7 +51,7 @@ switch Caso
         % DC and modulation in GV
         b=100; m=64;
         % noise level modulation in GV
-        nL_mod=20; 
+        nL_mod=50; 
         nL=100*nL_mod/m; %noise level in % of modulation
         % igram in GV [0 255]
         g=uint8(b+m*cos(phi)+nL_mod*randn(size(x)));
@@ -165,19 +165,18 @@ for k = 1:numel(methods_SF)
     error_map_w_phi     = w_phi(M_proc)     - pred_w_phi(M_proc);
     error_map_theta_or  = theta_or(M_proc)  - pred_theta_or(M_proc);
 
-    % mean and std of errors
-    mean_phi_x     = mean(error_map_phi_x, 'omitnan');
-    std_phi_x      = std(error_map_phi_x,  'omitnan');
+    %mean error
+    mean_error_phi_x     = mean(error_map_phi_x, 'omitnan');
+    mean_error_phi_y     = mean(error_map_phi_y, 'omitnan');
+    mean_error_w_phi     = mean(error_map_w_phi, 'omitnan');
+    mean_error_theta_or  = mean(error_map_theta_or, 'omitnan');
 
-    mean_phi_y     = mean(error_map_phi_y, 'omitnan');
-    std_phi_y      = std(error_map_phi_y,  'omitnan');
 
-    mean_w_phi     = mean(error_map_w_phi, 'omitnan');
-    std_w_phi      = std(error_map_w_phi,  'omitnan');
-
-    mean_theta_or  = mean(error_map_theta_or, 'omitnan');
-    std_theta_or   = std(error_map_theta_or,  'omitnan');
-
+    % RMSE 
+    RMSE_phi_x     = sqrt(mean(error_map_phi_x.^2, 'omitnan'));
+    RMSE_phi_y     = sqrt(mean(error_map_phi_y.^2, 'omitnan'));
+    RMSE_w_phi     = sqrt(mean(error_map_w_phi.^2, 'omitnan'));
+    RMSE_theta_or  = sqrt(mean(error_map_theta_or.^2, 'omitnan'));
 
     figure; histogram(error_map_phi_x, histEdge2); title(['hist(error \phi_x) ' fig_info]); xlabel('\phi_x rad/px')
     figure; histogram(error_map_phi_y, histEdge2); title(['hist(error \phi_y) ' fig_info]); xlabel('\phi_y rad/px')
@@ -186,11 +185,11 @@ for k = 1:numel(methods_SF)
 
     % Create a table for neat display, including timing information
     errorStats = table( ...
-        [mean_phi_x;     mean_phi_y;     mean_w_phi;     mean_theta_or], ...
-        [std_phi_x;      std_phi_y;      std_w_phi;      std_theta_or], ...
+        [mean_error_phi_x;     mean_error_phi_y;     mean_error_w_phi;     mean_error_theta_or], ...
+        [RMSE_phi_x;     RMSE_phi_y;     RMSE_w_phi;     RMSE_theta_or], ...
         repmat(results_SF(k).elapsedTimeMean_s, 4, 1), ...
         repmat(results_SF(k).elapsedTimeStd_s, 4, 1), ...
-        'VariableNames', {'Mean', 'Std', 'ElapsedTimeMean_s', 'ElapsedTimeStd_s'}, ...
+        'VariableNames', {'mean error', 'RMSE', 'ElapsedTimeMean_s', 'ElapsedTimeStd_s'}, ...
         'RowNames', {'phi_x', 'phi_y', 'w_phi', 'theta_or'} ...
         );
 

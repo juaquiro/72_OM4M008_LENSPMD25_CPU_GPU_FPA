@@ -38,7 +38,7 @@ function [w_phi, theta_or, phi_x, phi_y, M_proc] = calcSpatialFreqsHilbert2D(g, 
 %     M_proc  - Processed mask from phaseGradient (validity map).
 %
 %   EXAMPLE
-%     [w_phi, theta_or] = calcSpatialFreqsHilbert2D(g, [], ...
+%     [w_phi, theta_or, phi_x, phi_y, M_proc] = calcSpatialFreqsHilbert2D(g, [], ...
 %         wTh=4, filter_orientation=pi/2, phasor_filter_size=7);
 %
 %   AQ 2024

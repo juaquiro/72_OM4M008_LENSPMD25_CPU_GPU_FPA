@@ -50,11 +50,12 @@ switch Caso
 
         % DC and modulation in GV
         b=100; m=64;
-        % noise level in GV
-        nL=10;
+        % noise level modulation in GV
+        nL_mod=20; 
+        nL=100*nL_mod/m; %noise level in % of modulation
         % igram in GV [0 255]
-        g=round(b+m*cos(phi))+nL*randn(size(x));
-        g=g.*M;
+        g=uint8(b+m*cos(phi)+nL_mod*randn(size(x)));
+        g=double(g).*M;
     otherwise
         error('bad selection')
 end
@@ -63,6 +64,8 @@ end
 %% calculate spatial freqs
 
 % methods list, all have at least g, and M params
+% for adding a new method simply create a new allement of the array of
+% struct with fileds fun_name and fun
 methods_SF = [
     % wTh default: 5
     % wmin default: wTh
@@ -112,10 +115,10 @@ end
 %% Display results
 
 %ground truth
-figure; imagesc(g); colorbar; title(['IGRAM'], 'Interpreter', 'none'); figure(gcf)
-figure; imagesc(w_phi); colorbar; title(['w_\phi GROUND TRUTH rad/px ']); figure(gcf)
-figure; imagesc(phi_x); colorbar; title(['\phi_x GROUND TRUTH rad/px ']); figure(gcf)
-figure; imagesc(phi_y); colorbar; title(['\phi_y GROUND TRUTH rad/px ']); figure(gcf)
+figure; imagesc(g); colorbar; title(['IGRAM'], 'Interpreter', 'none'); 
+figure; imagesc(w_phi); colorbar; title(['w_\phi GROUND TRUTH rad/px ']); 
+figure; imagesc(phi_x); colorbar; title(['\phi_x GROUND TRUTH rad/px ']); 
+figure; imagesc(phi_y); colorbar; title(['\phi_y GROUND TRUTH rad/px ']); 
 
 % Histograms on valid pixels
 histEdge1=linspace(-pi, pi, 100);
@@ -128,14 +131,14 @@ figure; histogram(phi_y(M), histEdge1); title('hist(\phi_y) GROUND TRUTH rad/px'
 % predicted values
 for k = 1:numel(methods_SF)
 
-    fprintf("Plotting error results for: %s\n", methods_SF(k).fun_name);
+    fprintf("Plotting error results for: %s\n, noise level nL=%.2f%% \n", methods_SF(k).fun_name, nL);
 
     pred_w_phi=results_SF(k).pred_w_phi;
     pred_phi_x=results_SF(k).pred_phi_x;
     pred_phi_y=results_SF(k).pred_phi_y;
     pred_theta_or=results_SF(k).pred_theta_or;
     M_proc=results_SF(k).M_proc;
-    fig_info=char(sprintf("%s, NOISE nL=%d", results_SF(k).fun_name, nL) );
+    fig_info = char(sprintf("%s, NOISE nL=%.2f%%", results_SF(k).fun_name, nL));
     r=250; c=250;
 
     % w_phi

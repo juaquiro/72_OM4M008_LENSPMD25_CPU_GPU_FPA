@@ -217,6 +217,7 @@ if filterFlag
     %filter Mask
     M_proc=conv2(M, ones(10,10)/100, 'same');
     M_proc=M_proc>0.999;
+    
 end
 
 % check for calcMethod 
@@ -264,10 +265,7 @@ for c=1:NC
     for r=1:NR
         if M(r,c)
             n=sub2ind([NR NC], r, c); %pixel index in vmgHx for pixel [r, c]
-            if n==283024
-                vv=1;
-            end
-
+           
             [~, pos] = max(vmgH(:, n)); %maximum response for pixel n
             indx=pos-3:pos+3; % use 7 points
             validIndx=(indx>0)&(indx<=nFilters); %check for boundaries 1<=index<=NFilters

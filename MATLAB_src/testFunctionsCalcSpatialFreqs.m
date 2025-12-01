@@ -142,17 +142,17 @@ for k = 1:numel(methods_SF)
     r=250; c=250;
 
     % w_phi
-    figure; imagesc(pred_w_phi); colorbar; title(['w_\phi rad/px' fig_info]); figure(gcf)
+    figure; imagesc(pred_w_phi.*M_proc); colorbar; title(['w_\phi rad/px' fig_info]); figure(gcf)
     figure; plot(1:NC, pred_w_phi(r, :), 1:NC, w_phi(r, :)); legend({fig_info, 'GT'}); title(['w_\phi ' fig_info ' row ' num2str(r)]);
     figure; plot(1:NR, pred_w_phi(:, c), 1:NR, w_phi(:, c)); legend({fig_info, 'GT'}); title(['w_\phi ' fig_info ' col ' num2str(c)]);
 
     %phi_x
-    figure; imagesc(pred_phi_x); colorbar; title(['\phi_x rad/px' fig_info]); figure(gcf)
+    figure; imagesc(pred_phi_x.*M_proc); colorbar; title(['\phi_x rad/px' fig_info]); figure(gcf)
     figure; plot(1:NC, pred_phi_x(r, :), 1:NC, phi_x(r, :)); legend({fig_info, 'GT'}); title(['\phi_x ' fig_info ' row ' num2str(r)]);
     figure; plot(1:NR, pred_phi_x(:, c), 1:NR, phi_x(:, c)); legend({fig_info, 'GT'}); title(['\phi_x ' fig_info ' col ' num2str(r)]);
 
     %phi_y
-    figure; imagesc(pred_phi_y); colorbar; title(['\phi_y rad/px' fig_info]); figure(gcf)
+    figure; imagesc(pred_phi_y.*M_proc); colorbar; title(['\phi_y rad/px' fig_info]); figure(gcf)
     figure; plot(1:NC, pred_phi_y(r, :), 1:NC, phi_y(r, :)); legend({fig_info, 'GT'}); title(['\phi_x ' fig_info ' row ' num2str(r)]);
     figure; plot(1:NR, pred_phi_y(:, c), 1:NR, phi_y(:, c)); legend({fig_info, 'GT'}); title(['\phi_x ' fig_info ' col ' num2str(r)]);
 

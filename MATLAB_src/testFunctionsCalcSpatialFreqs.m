@@ -36,7 +36,7 @@ switch Caso
         %M=ones(NR, NC);
 
         %spatial carrier
-        w0=[0.25*pi/4, 0.25*pi/4]; %rad/px
+        w0=[pi/4, pi/4]; %rad/px
         fringe_carrier_or=atan(w0(2)/w0(1));
 
         %peaks
@@ -80,6 +80,18 @@ methods_SF = [
     % wTh default 3     
     struct("fun_name","hilbert2D", ...
     "fun", @(g,M) calcSpatialFreqsHilbert2D(g,M, "filter_orientation", fringe_carrier_or))
+
+    %version paralela
+    % wTh default: 5
+    % wmin default: wTh
+    % wmax default: 0.25 * mean(size(g))
+    % Dw default: 1
+    % freqUnits default: "interpFreq"
+    % calcMethod default: "interpFreq"
+    % filterFlag default: true
+    struct("fun_name","filterbank_ParVer", ...
+    "fun", @(g,M) calcSpatialFreqsFilterbank_ParVer(g,M))
+
     ];
 
 results_SF = struct([]);

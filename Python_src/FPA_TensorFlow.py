@@ -406,3 +406,362 @@ def calcSpatialFreqsHilbert2D_TF(
         phi_y.numpy().astype(np.float32),
         M_proc.numpy().astype(np.float32),
     )
+
+
+# ---------------------------------------------------------------------
+# TF version of calcFreqFromFilterRespose_NumPy
+# ---------------------------------------------------------------------
+def calcFreqFromFilterRespose_TF(M, NR, NC, vmgH, nFilters, qList):
+    """
+    Vectorized 3-point parabolic interpolation of the frequency
+    from the filter-bank response (TensorFlow/GPU version).
+
+    Parameters
+    ----------
+    M : ndarray or tf.Tensor, shape (NR, NC), bool or numeric
+        ROI mask; used only to set w[~M] = NaN at the end.
+    NR, NC : int
+        Image size (rows, cols).
+    vmgH : ndarray or tf.Tensor, shape (nFilters, NR*NC)
+        Filter-bank magnitudes for all pixels.
+    nFilters : int
+        Number of filters along the frequency axis.
+    qList : ndarray or tf.Tensor, shape (nFilters,)
+        List of spatial frequencies (in 'ff' units).
+
+    Returns
+    -------
+    w_tf : tf.Tensor, shape (NR, NC), float32
+        Interpolated frequency per pixel (same units as qList),
+        with NaN outside the mask M.
+    """
+    # Mask to bool
+    M_tf = tf.convert_to_tensor(M)
+    if not M_tf.dtype.is_bool:
+        M_tf = tf.not_equal(M_tf, 0)
+
+    qList_tf = tf.reshape(tf.convert_to_tensor(qList, dtype=tf.float32), [-1])
+    dq = qList_tf[1] - qList_tf[0]
+    q0 = qList_tf[0]
+
+    vmgH_tf = tf.convert_to_tensor(vmgH, dtype=tf.float32)
+    shape_v = tf.shape(vmgH_tf)
+    nFilters_check = shape_v[0]
+    Npix = shape_v[1]
+    tf.debugging.assert_equal(
+        nFilters_check, nFilters, message="vmgH first dim must be nFilters"
+    )
+
+    # 1) Discrete maximum index for each pixel (across filters)
+    k = tf.argmax(vmgH_tf, axis=0, output_type=tf.int32)  # [Npix]
+
+    # 2) Neighbor indices (clamped)
+    km = tf.maximum(k - 1, 0)
+    kp = tf.minimum(k + 1, nFilters - 1)
+
+    idx = tf.range(Npix, dtype=tf.int32)
+
+    # Gather helper
+    def _gather_at(indices_filter, indices_pix):
+        return tf.gather_nd(
+            vmgH_tf,
+            tf.stack([indices_filter, indices_pix], axis=1),
+        )
+
+    y0 = _gather_at(k, idx)
+    ym = _gather_at(km, idx)
+    yp = _gather_at(kp, idx)
+
+    # 3) Parabolic interpolation (index units)
+    den = ym - 2.0 * y0 + yp
+    tol = tf.constant(1e-12, dtype=tf.float32)
+    denAbsSmall = tf.abs(den) < tol
+    den_safe = tf.where(denAbsSmall, tf.ones_like(den), den)
+
+    delta = 0.5 * (ym - yp) / den_safe
+    delta = tf.where(denAbsSmall, tf.zeros_like(delta), delta)
+
+    # 4) Map (index + delta) → frequency using linear qList mapping
+    kEff = tf.cast(k, tf.float32) + tf.cast(delta, tf.float32)  # [Npix]
+    qMax_vec = q0 + kEff * dq
+
+    # 5) Reshape and apply mask
+    w_tf = tf.reshape(qMax_vec, (NR, NC))
+    # set outside mask to NaN
+    nan_val = tf.constant(np.float32(np.nan))
+    w_tf = tf.where(M_tf, w_tf, tf.fill([NR, NC], nan_val))
+
+    return w_tf  # float32 tensor
+
+
+# ---------------------------------------------------------------------
+# TF version of calcSpatialFreqsFilterbank_ParVer_NumPy
+# ---------------------------------------------------------------------
+def calcSpatialFreqsFilterbank_ParVer_TF(
+    g,
+    M=None,
+    *,
+    wTh: float = 5.0,
+    wmin: float | None = None,
+    wmax: float | None = None,
+    Dw: float = 1.0,
+    freqUnits: str = "rad/px",
+    calcMethod: str = "interpFreq",
+    filterFlag: bool = True,
+):
+    """
+    Local spatial frequency estimation for fringe patterns (TensorFlow/GPU).
+
+    TF/GPU translation of calcSpatialFreqsFilterbank_ParVer_NumPy.
+    Heavy operations (FFT, filter bank, smoothing) run in TensorFlow,
+    final results are returned as NumPy arrays (float32 / bool).
+
+    Parameters
+    ----------
+    g : np.ndarray or tf.Tensor, shape (NR, NC)
+        Input fringe pattern (igram), real-valued. Model: g = a + b*cos(phi).
+    M : np.ndarray or tf.Tensor or None, shape (NR, NC), bool or numeric
+        ROI mask. Non-zero / True means valid. Default: full image valid.
+    wTh : float, optional
+        Spatial-frequency magnitude threshold (in "ff" units). Default: 5.
+    wmin : float or None, optional
+        Min spatial frequency (in "ff" units) for scanning. Default: wTh.
+    wmax : float or None, optional
+        Max spatial frequency (in "ff" units). Default: 0.25*mean(size(g)).
+    Dw : float, optional
+        Frequency step (in "ff" units) between successive filters. Default: 1.
+    freqUnits : {"ff","rad/px"}, optional
+        Units for output: normalized fft units ("ff") or radians/pixel ("rad/px").
+        Default: "rad/px".
+    calcMethod : {"interpFreq","maxFreq"}, optional
+        Estimation method:
+          - "interpFreq": 3-point parabolic interpolation around maximum.
+          - "maxFreq": use discrete frequency of maximum response.
+        Default: "interpFreq".
+    filterFlag : bool, optional
+        If True, applies phasor-based smoothing to phi_x and phi_y (and M_proc).
+        If False, returns raw estimates and M_proc = M. Default: True.
+
+    Returns
+    -------
+    w_phi : np.ndarray, float32, shape (NR, NC)
+        Local spatial frequency magnitude at each pixel.
+    theta_or : np.ndarray, float32, shape (NR, NC)
+        Local fringe orientation in radians, in [0, pi].
+    phi_x : np.ndarray, float32, shape (NR, NC)
+        Local phase gradient component in x.
+    phi_y : np.ndarray, float32, shape (NR, NC)
+        Local phase gradient component in y.
+    M_proc : np.ndarray, bool, shape (NR, NC)
+        Processed mask after optional filtering of the ROI borders.
+    """
+    # ------------------------------------------------------------------
+    # Input & defaults
+    # ------------------------------------------------------------------
+    g_tf = tf.convert_to_tensor(g, dtype=tf.float32)
+    if g_tf.shape.rank != 2:
+        raise ValueError("Input g must be a 2D array/tensor.")
+
+    shape = tf.shape(g_tf)
+    NR = int(shape[0].numpy())
+    NC = int(shape[1].numpy())
+
+    if M is None:
+        M_bool = tf.ones((NR, NC), dtype=tf.bool)
+    else:
+        M_tf = tf.convert_to_tensor(M)
+        if M_tf.dtype.is_bool:
+            M_bool = M_tf
+        else:
+            M_bool = tf.not_equal(M_tf, 0)
+
+        tf.debugging.assert_equal(
+            tf.shape(g_tf),
+            tf.shape(M_bool),
+            message="Mask M must have the same shape as g.",
+        )
+
+    if wmin is None:
+        wmin = float(wTh)
+    if wmax is None:
+        wmax = 0.25 * float((NR + NC) / 2.0)
+
+    freqUnits = str(freqUnits)
+    if freqUnits not in ("ff", "rad/px"):
+        raise ValueError("freqUnits must be 'ff' or 'rad/px'.")
+
+    calcMethod = str(calcMethod)
+    if calcMethod not in ("interpFreq", "maxFreq"):
+        raise ValueError("calcMethod must be 'interpFreq' or 'maxFreq'.")
+
+    filterFlag = bool(filterFlag)
+
+    # ------------------------------------------------------------------
+    # Spatial freqs: cartesian freq units in "ff"
+    # ------------------------------------------------------------------
+    u = tf.range(NC, dtype=tf.float32) - tf.cast(NC // 2, tf.float32)
+    v = tf.range(NR, dtype=tf.float32) - tf.cast(NR // 2, tf.float32)
+    U, V = tf.meshgrid(u, v)  # shape [NR, NC]
+
+    q = tf.sqrt(tf.square(U) + tf.square(V))  # float32
+
+    # ------------------------------------------------------------------
+    # g's FT and high-pass filter (2D FFT)
+    # ------------------------------------------------------------------
+    G = tf.signal.fft2d(tf.cast(g_tf, tf.complex64))  # last 2 dims = (NR,NC)
+
+    H1 = 1.0 - tf.exp(-0.5 * tf.square(q / tf.constant(wTh, tf.float32)))
+    H1_shift = tf.signal.ifftshift(H1)
+
+    G = G * tf.cast(H1_shift, tf.complex64)
+
+    # ------------------------------------------------------------------
+    # Filter bank (parallel 3D implementation on GPU)
+    # ------------------------------------------------------------------
+    sw = 10.0 * float(Dw)
+    nFilters = int(round((wmax - wmin) / Dw))
+    if nFilters <= 0:
+        raise ValueError("nFilters <= 0: check wmin, wmax, Dw.")
+
+    qList_tf = tf.linspace(
+        tf.constant(wmin, tf.float32),
+        tf.constant(wmax, tf.float32),
+        nFilters,
+    )  # [nFilters]
+
+    # Hx / Hy shapes: [nFilters, NR, NC] so that fft2d works on last two dims
+    qList3 = tf.reshape(qList_tf, (nFilters, 1, 1))  # [nFilters,1,1]
+    U3 = tf.reshape(U, (1, NR, NC))
+    V3 = tf.reshape(V, (1, NR, NC))
+
+    Hx = tf.exp(-0.5 * tf.square((U3 - qList3) / sw))
+    Hy = tf.exp(-0.5 * tf.square((V3 - qList3) / sw))
+
+    # Match fft2d convention: move DC to (0,0) for each filter slice
+    Hx = tf.signal.ifftshift(Hx, axes=(1, 2))
+    Hy = tf.signal.ifftshift(Hy, axes=(1, 2))
+
+    # Broadcast G to [nFilters, NR, NC] and apply filters
+    G2 = tf.expand_dims(G, axis=0)  # [1,NR,NC]
+    G2 = tf.broadcast_to(G2, (nFilters, NR, NC))  # [nFilters,NR,NC]
+
+    gHx = tf.signal.ifft2d(G2 * tf.cast(Hx, tf.complex64))  # [nFilters,NR,NC]
+    gHy = tf.signal.ifft2d(G2 * tf.cast(Hy, tf.complex64))  # [nFilters,NR,NC]
+
+    # Magnitudes
+    mgHx = tf.abs(gHx)  # float32, [nFilters,NR,NC]
+    mgHy = tf.abs(gHy)  # float32, [nFilters,NR,NC]
+
+    # Flatten to [nFilters, NR*NC]
+    vmgHx = tf.reshape(mgHx, (nFilters, NR * NC))
+    vmgHy = tf.reshape(mgHy, (nFilters, NR * NC))
+
+    # ------------------------------------------------------------------
+    # Spatial frequency estimation: X component
+    # ------------------------------------------------------------------
+    if calcMethod == "maxFreq":
+        pos_x = tf.argmax(vmgHx, axis=0, output_type=tf.int32)  # [NR*NC]
+        phi_x = tf.gather(qList_tf, pos_x)  # [NR*NC]
+        phi_x = tf.reshape(phi_x, (NR, NC))
+    else:
+        phi_x = calcFreqFromFilterRespose_TF(
+            M_bool, NR, NC, vmgHx, nFilters, qList_tf
+        )
+
+    # Median 5x5
+    phi_x = _median_filter_2d(phi_x, 5)
+
+    # Optional weighted filtering
+    if filterFlag:
+        phi_x = tf.where(tf.math.is_nan(phi_x), tf.zeros_like(phi_x), phi_x)
+
+        phaseFactor = tf.constant(0.01, tf.float32)
+
+        wxQuality = tf.math.reduce_std(vmgHx, axis=0) ** 2  # [NR*NC]
+        wxQuality = tf.reshape(wxQuality, (NR, NC))
+
+        # Complex phase term: i * phaseFactor * phi_x
+        arg_x = tf.complex(
+            tf.zeros_like(phi_x),        # real part = 0
+            phaseFactor * phi_x,         # imag part = phaseFactor * phi_x
+        )
+        zx = tf.complex(wxQuality, tf.zeros_like(wxQuality)) * tf.exp(arg_x)
+
+        kernel_size = 10
+        kernel = tf.ones((kernel_size, kernel_size), tf.float32) / (
+            kernel_size * kernel_size
+        )
+
+        zx_real = _box_filter_2d(tf.math.real(zx), kernel_size)
+        zx_imag = _box_filter_2d(tf.math.imag(zx), kernel_size)
+        zxf = tf.complex(zx_real, zx_imag)
+
+        phi_x = tf.math.angle(zxf) / phaseFactor
+
+        # Filter mask
+        M_float = tf.cast(M_bool, tf.float32)
+        M_conv = _box_filter_2d(M_float, kernel_size)
+        M_proc_bool = M_conv > 0.999
+    else:
+        M_proc_bool = M_bool
+
+    # ------------------------------------------------------------------
+    # Spatial frequency estimation: Y component
+    # ------------------------------------------------------------------
+    if calcMethod == "maxFreq":
+        pos_y = tf.argmax(vmgHy, axis=0, output_type=tf.int32)
+        phi_y = tf.gather(qList_tf, pos_y)  # NOTE: NumPy had (qList[pos]**2)
+        phi_y = tf.reshape(phi_y, (NR, NC))
+    else:
+        phi_y = calcFreqFromFilterRespose_TF(
+            M_bool, NR, NC, vmgHy, nFilters, qList_tf
+        )
+
+    phi_y = _median_filter_2d(phi_y, 5)
+
+    if filterFlag:
+        phi_y = tf.where(tf.math.is_nan(phi_y), tf.zeros_like(phi_y), phi_y)
+
+        phaseFactor = tf.constant(0.01, tf.float32)
+
+        wyQuality = tf.math.reduce_std(vmgHy, axis=0) ** 2
+        wyQuality = tf.reshape(wyQuality, (NR, NC))
+
+        # Complex phase term: i * phaseFactor * phi_y
+        arg_y = tf.complex(
+            tf.zeros_like(phi_y),
+            phaseFactor * phi_y,
+        )
+        zy = tf.complex(wyQuality, tf.zeros_like(wyQuality)) * tf.exp(arg_y)
+
+        kernel_size = 10
+        zy_real = _box_filter_2d(tf.math.real(zy), kernel_size)
+        zy_imag = _box_filter_2d(tf.math.imag(zy), kernel_size)
+        zyf = tf.complex(zy_real, zy_imag)
+
+        phi_y = tf.math.angle(zyf) / phaseFactor
+
+    # ------------------------------------------------------------------
+    # Units conversion and orientation
+    # ------------------------------------------------------------------
+    if freqUnits == "rad/px":
+        Cx = tf.constant(2.0 * np.pi / float(NC), tf.float32)
+        Cy = tf.constant(2.0 * np.pi / float(NR), tf.float32)
+        phi_x = phi_x * Cx
+        phi_y = phi_y * Cy
+        w_phi = tf.abs(tf.complex(phi_x, phi_y))
+    else:  # "ff"
+        w_phi = tf.abs(tf.complex(phi_x, phi_y))
+
+    theta_or = tf.math.atan2(-phi_y, phi_x)
+
+    # ------------------------------------------------------------------
+    # Convert outputs to NumPy
+    # ------------------------------------------------------------------
+    w_phi_np = w_phi.numpy().astype(np.float32)
+    theta_or_np = theta_or.numpy().astype(np.float32)
+    phi_x_np = phi_x.numpy().astype(np.float32)
+    phi_y_np = phi_y.numpy().astype(np.float32)
+    M_proc_np = M_proc_bool.numpy().astype(bool)
+
+    return w_phi_np, theta_or_np, phi_x_np, phi_y_np, M_proc_np

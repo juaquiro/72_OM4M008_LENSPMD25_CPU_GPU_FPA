@@ -21,6 +21,10 @@ MATLAB_src/html/**
 *.exe
 *.war
 
+# Profiling and reports
+*.prof
+*.html
+
 # Large media files
 *.mp4
 *.tiff

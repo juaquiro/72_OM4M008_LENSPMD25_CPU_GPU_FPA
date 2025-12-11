@@ -938,7 +938,7 @@ def calcSpatialFreqsFilterbank_ParVer_TF(
     return w_phi_np, theta_or_np, phi_x_np, phi_y_np, M_proc_np
 
 
-@tf.function
+#@tf.function
 def _calcSpatialFreqsFilterbank_ParVer_TF_core(
     *,
     g_tf: tf.Tensor,
@@ -1110,7 +1110,7 @@ def _calcSpatialFreqsFilterbank_ParVer_TF_core(
     if calcMethod == "maxFreq":
         pos_y = tf.argmax(vmgHy, axis=0, output_type=tf.int32)
         phi_y = tf.gather(qList_tf, pos_y)  # NOTE: NumPy had (qList[pos]**2)
-        phi_y = tf.reshape(phi_y, (NR, NC))
+        phi_y = tf.reshape(phi_y, (NR_tf, NC_tf))
     else:
         phi_y = calcFreqFromFilterRespose_TF(
             M_bool, NR_tf, NC_tf, vmgHy, nFilters, qList_tf

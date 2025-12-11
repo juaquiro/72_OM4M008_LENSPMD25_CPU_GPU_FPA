@@ -497,7 +497,8 @@ def calcFreqFromFilterRespose_TF(M, NR, NC, vmgH, nFilters, qList):
 # ---------------------------------------------------------------------
 # TF version of calcSpatialFreqsFilterbank_ParVer_NumPy
 # ---------------------------------------------------------------------
-def calcSpatialFreqsFilterbank_ParVer_TF(
+# OLD 
+def OLD_calcSpatialFreqsFilterbank_ParVer_TF(
     g,
     M=None,
     *,
@@ -767,8 +768,8 @@ def calcSpatialFreqsFilterbank_ParVer_TF(
     return w_phi_np, theta_or_np, phi_x_np, phi_y_np, M_proc_np
 
 
-
-def NEW_calcSpatialFreqsFilterbank_ParVer_TF(
+#NEW
+def calcSpatialFreqsFilterbank_ParVer_TF(
     g,
     M=None,
     *,
@@ -980,6 +981,7 @@ def _calcSpatialFreqsFilterbank_ParVer_TF_core(
     # ------------------------------------------------------------------
     # 0) Basic shapes and frequency grids (TF only, no .numpy())
     # ------------------------------------------------------------------
+    breakpoint()
     shape = tf.shape(g_tf)
     NR_tf = shape[0]
     NC_tf = shape[1]

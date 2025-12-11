@@ -1,6 +1,5 @@
 name: LENSPMD25-base310
 channels:
-  - conda-forge    
   - defaults
   - https://repo.anaconda.com/pkgs/main
   - https://repo.anaconda.com/pkgs/r
@@ -75,6 +74,7 @@ dependencies:
   - mpmath==1.3.0=py310haa95532_0
   - nest-asyncio==1.6.0=pyhd8ed1ab_1
   - networkx==3.4.2=py310haa95532_0
+  - opencv
   - openjpeg==2.5.2=h9b5d1b5_1
   - openssl==3.5.4=h725018a_0
   - packaging==25.0=pyh29332c3_1
@@ -100,6 +100,7 @@ dependencies:
   - requests==2.32.5=py310haa95532_0
   - setuptools==72.1.0=py310haa95532_0
   - six==1.17.0=pyhe01879c_1
+  - snakeviz
   - sqlite==3.50.2=hda9a48d_1
   - stack_data==0.6.3=pyhd8ed1ab_1
   - sympy==1.14.0=py310haa95532_0
@@ -122,6 +123,6 @@ dependencies:
   - zipp==3.23.0=pyhd8ed1ab_0
   - zlib==1.3.1=h02ab6af_0
   - zstd==1.5.7=h56299aa_0
-  - opencv
-  - snakeviz
+  - matplotlib
+  - tensorflow
 prefix: C:\ProgramData\anaconda3\envs\LENSPMD25-base310

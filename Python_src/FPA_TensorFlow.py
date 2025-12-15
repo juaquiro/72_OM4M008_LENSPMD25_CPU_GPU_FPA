@@ -10,6 +10,7 @@
 
 import tensorflow as tf
 import numpy as np
+from image_viewer_app import launch_image_viewer
 
 
 # ---------------------------------------------------------------------
@@ -986,6 +987,8 @@ def _calcSpatialFreqsFilterbank_ParVer_TF_core(
     NR_tf = shape[0]
     NC_tf = shape[1]
 
+    launch_image_viewer(g_tf.numpy(), title="g")
+    
     # build u, v, U, V, q in TF (as in your original implementation)
     u = tf.range(NC_tf, dtype=tf.float32) - tf.cast(NC_tf // 2, tf.float32)
     v = tf.range(NR_tf, dtype=tf.float32) - tf.cast(NR_tf // 2, tf.float32)

@@ -986,8 +986,6 @@ def _calcSpatialFreqsFilterbank_ParVer_TF_core(
     shape = tf.shape(g_tf)
     NR_tf = shape[0]
     NC_tf = shape[1]
-
-    launch_image_viewer(g_tf.numpy(), title="g")
     
     # build u, v, U, V, q in TF (as in your original implementation)
     u = tf.range(NC_tf, dtype=tf.float32) - tf.cast(NC_tf // 2, tf.float32)

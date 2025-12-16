@@ -10,7 +10,6 @@
 
 import tensorflow as tf
 import numpy as np
-from image_viewer_app import launch_image_viewer
 
 
 # ---------------------------------------------------------------------

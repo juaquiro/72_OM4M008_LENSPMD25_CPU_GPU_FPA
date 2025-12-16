@@ -40,7 +40,7 @@ import numpy as np
 import matplotlib
 
 # Use generic Qt backend (works with Qt5 or Qt6)
-matplotlib.use("QtAgg")
+# matplotlib.use("QtAgg") is not necessary and only clashes with existing backends, for example in notebooks
 
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg, NavigationToolbar2QT
 from matplotlib.figure import Figure

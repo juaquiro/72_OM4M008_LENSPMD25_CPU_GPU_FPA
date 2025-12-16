@@ -981,7 +981,6 @@ def _calcSpatialFreqsFilterbank_ParVer_TF_core(
     # ------------------------------------------------------------------
     # 0) Basic shapes and frequency grids (TF only, no .numpy())
     # ------------------------------------------------------------------
-    breakpoint()
     shape = tf.shape(g_tf)
     NR_tf = shape[0]
     NC_tf = shape[1]
@@ -1026,10 +1025,7 @@ def _calcSpatialFreqsFilterbank_ParVer_TF_core(
 
     Hx = tf.exp(-0.5 * tf.square((U3 - qList3) / sw))
     Hy = tf.exp(-0.5 * tf.square((V3 - qList3) / sw))
-
-    Hx = tf.signal.ifftshift(Hx, axes=(1, 2))
-    Hy = tf.signal.ifftshift(Hy, axes=(1, 2))
-
+    
     # FFT of G replicated over filter dimension if needed,
     # apply Hx/Hy, inverse FFT, magnitude, etc. (as in your original code)
     # ------------------------------------------------------------------
@@ -1037,8 +1033,8 @@ def _calcSpatialFreqsFilterbank_ParVer_TF_core(
     #    and w_phi via calcFreqFromFilterRespose_TF or |grad phi|
     # ------------------------------------------------------------------
     # Match fft2d convention: move DC to (0,0) for each filter slice
-    Hx = tf.signal.ifftshift(Hx, axes=(1, 2))
-    Hy = tf.signal.ifftshift(Hy, axes=(1, 2))
+    Hx = tf.signal.ifftshift(Hx, axes=(1,2))
+    Hy = tf.signal.ifftshift(Hy, axes=(1,2))
 
     # Broadcast G to [nFilters, NR, NC] and apply filters
     G2 = tf.expand_dims(G, axis=0)  # [1,NR,NC]
